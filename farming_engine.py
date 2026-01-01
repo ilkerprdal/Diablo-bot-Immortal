@@ -35,8 +35,8 @@ class FarmingEngine:
         
         # Dairesel hareket için açı takibi
         self.circle_angle = 0.0  # Radyan cinsinden açı (0-2π)
-        self.circle_angle_speed = 0.12  # Her frame'de açı artışı (radyan) - daha yavaş ve smooth
-        self.circle_radius_offset = 0.75  # Merkezden uzaklık (yarıçapın %75'i) - daha güvenli
+        self.circle_angle_speed = 0.1  # Her frame'de açı artışı (radyan) - daha yavaş ve smooth dairesel hareket
+        self.circle_radius_offset = 0.7  # Merkezden uzaklık (yarıçapın %70'i) - daire çevresinde dolaş
         self.circular_movement_active = False  # Dairesel hareket aktif mi?
         
         # Hareket ayarları
@@ -96,17 +96,24 @@ class FarmingEngine:
         # Parlaklık hesabı
         brightness = (r.astype(float) + g.astype(float) + b.astype(float)) / 3
         
-        # Beyaz/parlak renk tespiti - daha agresif threshold
-        white_threshold = 200
+        # Beyaz/parlak renk tespiti - karakter marker için optimize edildi
+        # Karakter marker genellikle çok parlak beyaz (RGB > 220)
+        white_threshold = 220  # Daha yüksek threshold (sadece çok parlak noktalar)
         brightness_mask = brightness > white_threshold
         
-        # RGB dengeli olmalı (r≈g≈b) - tolerans artırıldı
-        color_balance_threshold = 35
+        # RGB dengeli olmalı (r≈g≈b) - karakter marker için daha sıkı kontrol
+        color_balance_threshold = 25  # Daha sıkı (beyaz için)
         is_balanced = (np.abs(r.astype(float) - g.astype(float)) < color_balance_threshold) & \
                       (np.abs(g.astype(float) - b.astype(float)) < color_balance_threshold) & \
                       (np.abs(r.astype(float) - b.astype(float)) < color_balance_threshold)
         
         white_mask = brightness_mask & is_balanced
+        
+        # Eğer çok az beyaz piksel varsa, threshold'u düşür (fallback)
+        if np.sum(white_mask) < 5:
+            white_threshold = 180  # Daha düşük threshold dene
+            brightness_mask = brightness > white_threshold
+            white_mask = brightness_mask & is_balanced
         
         # Eğer beyaz bulunamazsa, en parlak noktaları kontrol et
         if not np.any(white_mask):
@@ -413,14 +420,17 @@ class FarmingEngine:
                     time.sleep(0.5)
                     continue
                 
-                # Karakter pozisyonunu tespit et
+                # Karakter pozisyonunu tespit et - mini haritadan marker takibi
                 position = self.detect_character_marker(minimap_image)
                 
-                # Stabilize edilmiş pozisyon kullan
+                # Stabilize edilmiş pozisyon kullan (gürültüyü azalt)
                 if position:
                     stabilized_position = self._get_stabilized_position()
                     if stabilized_position:
                         position = stabilized_position
+                else:
+                    # Marker bulunamazsa, son bilinen pozisyonu kullan
+                    position = self.last_detected_position
                 
                 with self.lock:
                     self.current_position = position
@@ -431,9 +441,12 @@ class FarmingEngine:
                     time.sleep(self.movement_check_interval)
                     continue
                 
-                # Pozisyon güncellemesi
-                if self.on_position_update:
-                    self.on_position_update(position, circle_center, circle_radius)
+                # Pozisyon güncellemesi - UI'ya bildir
+                if self.on_position_update and position:
+                    try:
+                        self.on_position_update(position, circle_center, circle_radius)
+                    except Exception as e:
+                        print(f"Position update callback hatası: {e}")
                 
                 # Daire içinde mi kontrol et - sürekli kontrol ve marker takibi
                 distance = self.get_distance_to_center(position, circle_center)
