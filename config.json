@@ -1,0 +1,36 @@
+{
+  "hp_bar": {
+    "x": 13,
+    "y": 122,
+    "width": 171,
+    "height": 26
+  },
+  "hp_colors": {
+    "healthy_min": [
+      61,
+      0,
+      0
+    ],
+    "healthy_max": [
+      121,
+      53,
+      52
+    ],
+    "low_hp_min": [
+      33,
+      0,
+      0
+    ],
+    "low_hp_max": [
+      93,
+      46,
+      45
+    ]
+  },
+  "hp_threshold": 85,
+  "key_to_press": "q",
+  "check_interval_ms": 100,
+  "cooldown_ms": 1000,
+  "key_press_duration_ms": 60,
+  "stop_key": "f12"
+}
